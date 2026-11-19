@@ -19,7 +19,7 @@
 #define _POSIX_C_SOURCE 200809L // expose localtime_r on Windows
 #include <time.h>
 
-#include "_string.h"
+#include "peercast_string.h"
 #include "jis.h"
 #include "stream.h"
 

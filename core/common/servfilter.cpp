@@ -17,7 +17,7 @@
 // ------------------------------------------------
 
 #include "servfilter.h"
-#include "_string.h"
+#include "peercast_string.h"
 #include "stream.h"
 #include "regexp.h"
 #include "str.h"

@@ -22,7 +22,8 @@
 #include <Carbon/Carbon.h>
 #endif
 #include <CoreFoundation/CoreFoundation.h>
-#include <ApplicationServices/ApplicationServices.h>
+#include <CoreServices/CoreServices.h>
+#include <mach-o/dyld.h>
 #endif
 
 #include <pthread.h>
@@ -252,12 +253,31 @@ bool USys::getHostnameByAddress(const IP& ip, std::string& out)
 // ---------------------------------
 std::string USys::getExecutablePath()
 {
+    return getCurrentExecutablePath();
+}
+
+std::string USys::getCurrentExecutablePath()
+{
+#ifdef __APPLE__
+    uint32_t size = PATH_MAX;
+    std::vector<char> path(size);
+    if (_NSGetExecutablePath(path.data(), &size) != 0) {
+        path.resize(size);
+        if (_NSGetExecutablePath(path.data(), &size) != 0)
+            throw GeneralException("_NSGetExecutablePath: could not get executable path");
+    }
+
+    char resolvedPath[PATH_MAX];
+    if (!realpath(path.data(), resolvedPath))
+        throw GeneralException(std::string("realpath: ") + str::strerror(errno));
+    return resolvedPath;
+#else
     // readlink does not append a null byte to the buffer, so we zero it out beforehand.
     char path[PATH_MAX + 1] = "";
-    if (readlink("/proc/self/exe", path, PATH_MAX) == -1) {
-        throw GeneralException(str::format("%s: %s", __func__, str::strerror(errno).c_str()).c_str());
-    }
+    if (readlink("/proc/self/exe", path, PATH_MAX) == -1)
+        throw GeneralException(std::string("/proc/self/exe: ") + str::strerror(errno));
     return path;
+#endif
 }
 
 // ---------------------------------

@@ -39,7 +39,7 @@ find_package(GTest REQUIRED)
 include(GoogleTest)
 
 # RTMPの確認とデフォルトのリンク設定
-pkg_check_modules(LIBRTMP QUIET librtmp)
+pkg_check_modules(LIBRTMP QUIET IMPORTED_TARGET librtmp)
 if(LIBRTMP_FOUND)
   option(USE_RTMP "USE_RTMP" ON)
 else()
@@ -89,12 +89,20 @@ endif()
 # OpenSSLライブラリを探してリンク
 set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL REQUIRED)
-# NOTE: INTERFACE指定することでcoreをリンクするターゲットが自動でOpenSSLのライブラリをリンクする
-target_link_libraries(core INTERFACE OpenSSL::SSL)
+target_link_libraries(core PUBLIC OpenSSL::SSL)
+
+if(APPLE)
+  find_library(COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+  find_library(CORESERVICES_FRAMEWORK CoreServices REQUIRED)
+  target_link_libraries(core PRIVATE ${COREFOUNDATION_FRAMEWORK} ${CORESERVICES_FRAMEWORK})
+endif()
 
 if(USE_RTMP)
-  target_compile_definitions(core INTERFACE WITH_RTMP)
-  target_link_libraries(core INTERFACE ${LIBRTMP_LIBRARIES})
+  if(NOT LIBRTMP_FOUND)
+    message(FATAL_ERROR "USE_RTMP=ON requires librtmp (pkg-config module librtmp)")
+  endif()
+  target_compile_definitions(core PUBLIC WITH_RTMP)
+  target_link_libraries(core PUBLIC PkgConfig::LIBRTMP)
 endif()
 
 if(WIN32)

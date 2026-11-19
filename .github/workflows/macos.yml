@@ -2,6 +2,9 @@ name: PeerCast YT Apple Silicon Build
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - 'macos/**'
 
 permissions:
   contents: read
@@ -14,118 +17,86 @@ jobs:
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      - name: Fix macOS header conflict
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          root = Path(".")
-
-          old = root / "core/common/_string.h"
-          new = root / "core/common/peercast_string.h"
-
-          old.rename(new)
-
-          extensions = {".cpp", ".cc", ".c", ".h", ".hpp"}
-
-          for path in root.rglob("*"):
-              if ".git" in path.parts:
-                  continue
-              if not path.is_file():
-                  continue
-              if path.suffix not in extensions:
-                  continue
-
-              text = path.read_text(encoding="utf-8")
-              if "_string.h" in text:
-                  path.write_text(
-                      text.replace(
-                          "_string.h",
-                          "peercast_string.h"
-                      ),
-                      encoding="utf-8"
-                  )
-
-          print("Header conflict fix applied")
-          PY
-
-      - name: Show environment
-        run: |
-          uname -a
-          uname -m
-          clang++ --version
-          cmake --version
+      - name: Check runner architecture
+        run: test "$(uname -m)" = arm64
 
       - name: Install dependencies
-        run: |
-          brew install pkg-config googletest openssl@3
-
-      - name: Fix OpenSSL dependency
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path("CMakeLists.txt")
-          text = path.read_text()
-
-          old = "target_link_libraries(core INTERFACE OpenSSL::SSL)"
-          new = "target_link_libraries(core PUBLIC OpenSSL::SSL)"
-
-          if old not in text:
-              raise SystemExit("OpenSSL setting not found")
-
-          path.write_text(text.replace(old, new))
-          print("OpenSSL dependency fixed")
-          PY
-
-      - name: Fix Cookie comparison for macOS
-        run: |
-          python3 - <<'PY'
-          from pathlib import Path
-
-          header = Path("core/common/cookie.h")
-          source = Path("core/common/cookie.cpp")
-
-          old_header = "operator ==(const Cookie &c);"
-          new_header = "operator ==(const Cookie &c) const;"
-
-          old_source = "Cookie::operator ==(const Cookie &c)"
-          new_source = "Cookie::operator ==(const Cookie &c) const"
-
-          h = header.read_text()
-          s = source.read_text()
-
-          if old_header not in h or old_source not in s:
-              raise SystemExit("Cookie comparison definition not found")
-
-          header.write_text(h.replace(old_header, new_header))
-          source.write_text(s.replace(old_source, new_source))
-
-          print("Cookie comparison fixed")
-          PY
+        run: brew install pkg-config googletest openssl@3 rtmpdump
 
       - name: Configure CMake
         run: |
+          export PKG_CONFIG_PATH="$(brew --prefix rtmpdump)/lib/pkgconfig:${PKG_CONFIG_PATH:-}"
+          pkg-config --modversion librtmp
           cmake -S . -B build \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
             -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3)" \
-            -DUSE_RTMP=OFF
+            -DUSE_RTMP=ON
 
-      - name: Build PeerCast
+      - name: Build PeerCast and Web UI
+        run: cmake --build build --target linux-bin rtmp-server html public --parallel 3
+
+      - name: Package and verify arm64 executable
         run: |
-          cmake --build build \
-            --target linux-bin \
-            --parallel 1
+          package=build/peercast-yt-macos-arm64
+          mkdir -p "$package/bin" "$package/share/peercast"
+          cp build/peercast build/rtmp-server "$package/bin/"
+          cp -R ui/assets ui/cgi-bin ui/html ui/public "$package/share/peercast/"
+          cp -R ui/LICENSE licenses "$package/"
+          cp "$(brew --prefix openssl@3)/LICENSE.txt" "$package/licenses/License_OpenSSL3.txt"
+          python3 .github/scripts/bundle-macos-dylibs.py "$(brew --prefix)" "$package"
+          for binary in "$package"/bin/* "$package"/lib/*; do
+            file "$binary"
+            test "$(lipo -archs "$binary")" = arm64
+            otool -L "$binary"
+          done
+          nm "$package/bin/peercast" > build/peercast-symbols.txt
+          grep -F 'RTMPClientStream' build/peercast-symbols.txt
+          grep -F 'U _RTMP_Connect' build/peercast-symbols.txt
+          tar -czf build/peercast-yt-macos-arm64.tar.gz -C build peercast-yt-macos-arm64
 
-      - name: Check binary
+      - name: Smoke test the packaged CLI, Web UI, and RTMP
         run: |
-          file build/peercast
+          tmp="$(mktemp -d)"
+          tar -xzf build/peercast-yt-macos-arm64.tar.gz -C "$tmp"
+          peercast="$tmp/peercast-yt-macos-arm64/bin/peercast"
+          export XDG_CONFIG_HOME="$tmp/config"
+          export XDG_CACHE_HOME="$tmp/cache"
+          export XDG_STATE_HOME="$tmp/state"
+          cd "$tmp"
+          "$peercast" --help | grep -F 'Usage: peercast'
+          cat > smoke.ini <<'INI'
+          [Server]
+          serverPort=17144
+          autoServe=Yes
+          autoConnect=No
+          [End]
+          INI
+          "$peercast" --inifile "$tmp/smoke.ini" > peercast.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true; wait "$pid" || true; cat peercast.log' EXIT
+          url=http://127.0.0.1:17144
+          for attempt in {1..30}; do
+            if curl --noproxy '*' --fail --silent --max-time 2 --location "$url/" -o index.html; then
+              break
+            fi
+            kill -0 "$pid"
+            sleep 1
+          done
+          grep -qi '<html' index.html
+          grep -qi 'PeerCast' index.html
+          curl --noproxy '*' --fail --silent --show-error --max-time 5 \
+            "$url/assets/images/small-logo.png" -o small-logo.png
+          cmp small-logo.png "$tmp/peercast-yt-macos-arm64/share/peercast/assets/images/small-logo.png"
 
-      - name: Upload binary
+          python3 "$GITHUB_WORKSPACE/.github/scripts/smoke-rtmp.py" "$url"
+
+      - name: Upload executables and Web UI
         uses: actions/upload-artifact@v4
         with:
-          name: peercast-yt-macos-arm64
-          path: build/peercast
+          name: peercast-yt-macos-arm64-rtmp
+          path: build/peercast-yt-macos-arm64.tar.gz
           if-no-files-found: error

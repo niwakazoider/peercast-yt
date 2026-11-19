@@ -312,14 +312,14 @@ static void init()
     // 設定ファイルやアクセストークンファイルを作るときに自分しか読めなくする。
     umask(0077);
 
-    // readlink does not append a null byte to the buffer, so we zero it out beforehand.
-    char path[PATH_MAX + 1] = "";
-    if (readlink("/proc/self/exe", path, PATH_MAX) == -1) {
-        perror("/proc/self/exe");
+    try {
+        const auto path = USys::getCurrentExecutablePath();
+        const auto bindir = path.substr(0, path.find_last_of('/'));
+        htmlPath.set(bindir.c_str());
+    } catch (const GeneralException& e) {
+        fprintf(stderr, "%s\n", e.what());
         exit(1);
     }
-    auto bindir = dirname(path);
-    htmlPath.set(bindir);
     htmlPath.append("/../share/peercast/");
 
     const char* confdir = getConfDir();
