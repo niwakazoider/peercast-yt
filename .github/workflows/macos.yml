@@ -44,6 +44,7 @@ jobs:
           cp build/peercast "$package/bin/"
           cp -R ui/assets ui/cgi-bin ui/html ui/public "$package/share/peercast/"
           cp -R ui/LICENSE licenses "$package/"
+          cp "$(brew --prefix openssl@3)/LICENSE.txt" "$package/licenses/License_OpenSSL3.txt"
           file "$package/bin/peercast"
           test "$(lipo -archs "$package/bin/peercast")" = arm64
           otool -L "$package/bin/peercast"
