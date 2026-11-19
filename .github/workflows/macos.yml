@@ -61,6 +61,24 @@ jobs:
         run: |
           brew install pkg-config googletest openssl@3
 
+      - name: Fix OpenSSL dependency
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("CMakeLists.txt")
+          text = path.read_text()
+
+          old = "target_link_libraries(core INTERFACE OpenSSL::SSL)"
+          new = "target_link_libraries(core PUBLIC OpenSSL::SSL)"
+
+          if old not in text:
+              raise SystemExit("OpenSSL setting not found")
+
+          path.write_text(text.replace(old, new))
+          print("OpenSSL dependency fixed")
+          PY
+
       - name: Configure CMake
         run: |
           cmake -S . -B build \
