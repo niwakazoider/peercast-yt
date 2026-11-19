@@ -39,7 +39,7 @@ find_package(GTest REQUIRED)
 include(GoogleTest)
 
 # RTMPの確認とデフォルトのリンク設定
-pkg_check_modules(LIBRTMP QUIET librtmp)
+pkg_check_modules(LIBRTMP QUIET IMPORTED_TARGET librtmp)
 if(LIBRTMP_FOUND)
   option(USE_RTMP "USE_RTMP" ON)
 else()
@@ -98,8 +98,11 @@ if(APPLE)
 endif()
 
 if(USE_RTMP)
-  target_compile_definitions(core INTERFACE WITH_RTMP)
-  target_link_libraries(core INTERFACE ${LIBRTMP_LIBRARIES})
+  if(NOT LIBRTMP_FOUND)
+    message(FATAL_ERROR "USE_RTMP=ON requires librtmp (pkg-config module librtmp)")
+  endif()
+  target_compile_definitions(core PUBLIC WITH_RTMP)
+  target_link_libraries(core PUBLIC PkgConfig::LIBRTMP)
 endif()
 
 if(WIN32)
