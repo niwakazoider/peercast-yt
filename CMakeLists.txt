@@ -89,8 +89,13 @@ endif()
 # OpenSSLライブラリを探してリンク
 set(OPENSSL_USE_STATIC_LIBS TRUE)
 find_package(OpenSSL REQUIRED)
-# NOTE: INTERFACE指定することでcoreをリンクするターゲットが自動でOpenSSLのライブラリをリンクする
-target_link_libraries(core INTERFACE OpenSSL::SSL)
+target_link_libraries(core PUBLIC OpenSSL::SSL)
+
+if(APPLE)
+  find_library(COREFOUNDATION_FRAMEWORK CoreFoundation REQUIRED)
+  find_library(CORESERVICES_FRAMEWORK CoreServices REQUIRED)
+  target_link_libraries(core PRIVATE ${COREFOUNDATION_FRAMEWORK} ${CORESERVICES_FRAMEWORK})
+endif()
 
 if(USE_RTMP)
   target_compile_definitions(core INTERFACE WITH_RTMP)

@@ -3,7 +3,7 @@
 #include "common.h"
 #include "mapper.h"
 #include "str.h"
-#include "_string.h"
+#include "peercast_string.h"
 
 using namespace std;
 using namespace str;

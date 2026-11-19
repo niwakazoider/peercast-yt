@@ -33,7 +33,7 @@ extern char *trimstr(char *s);
 
 #define MAX_CGI_LEN 512
 
-#include "_string.h"
+#include "peercast_string.h"
 #include "varwriter.h"
 
 #include "ip.h"

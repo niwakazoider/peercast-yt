@@ -4,7 +4,7 @@
 #include <vector>
 #include <string>
 #include <atomic>
-#include "_string.h"
+#include "peercast_string.h"
 
 namespace ini {
 

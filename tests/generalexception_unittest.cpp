@@ -1,6 +1,6 @@
 #include <gtest/gtest.h>
 #include "common.h"
-#include "_string.h"
+#include "peercast_string.h"
 
 class GeneralExceptionFixture : public ::testing::Test {
 public:

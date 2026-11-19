@@ -1,5 +1,5 @@
 // ------------------------------------------------
-// File : _string.h
+// File : peercast_string.h
 // Author: giles
 // Desc:
 //

@@ -1,4 +1,4 @@
-#include "_string.h"
+#include "peercast_string.h"
 #include "stream.h"
 #include "uptest.h"
 #include "threading.h"

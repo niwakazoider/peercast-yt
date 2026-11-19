@@ -33,7 +33,7 @@ public:
 
     void    clear();
     void    set(const char *i, const IP& nip);
-    bool    operator ==(const Cookie &c);
+    bool    operator ==(const Cookie &c) const;
 
     IP            ip;
     char          id[64];
