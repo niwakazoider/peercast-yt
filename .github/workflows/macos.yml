@@ -1,0 +1,52 @@
+name: PeerCast YT Apple Silicon Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Show environment
+        run: |
+          uname -a
+          uname -m
+          clang++ --version
+          cmake --version
+
+      - name: Install dependencies
+        run: |
+          brew install pkg-config googletest openssl@3
+
+      - name: Configure CMake
+        run: |
+          cmake -S . -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DOPENSSL_ROOT_DIR="$(brew --prefix openssl@3)" \
+            -DUSE_RTMP=OFF
+
+      - name: Build PeerCast
+        run: |
+          cmake --build build \
+            --target linux-bin \
+            --parallel 3
+
+      - name: Check binary
+        run: |
+          file build/peercast
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: peercast-yt-macos-arm64
+          path: build/peercast
+          if-no-files-found: error
