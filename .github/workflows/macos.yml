@@ -15,6 +15,41 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
+      - name: Fix macOS header conflict
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          root = Path(".")
+
+          old = root / "core/common/_string.h"
+          new = root / "core/common/peercast_string.h"
+
+          old.rename(new)
+
+          extensions = {".cpp", ".cc", ".c", ".h", ".hpp"}
+
+          for path in root.rglob("*"):
+              if ".git" in path.parts:
+                  continue
+              if not path.is_file():
+                  continue
+              if path.suffix not in extensions:
+                  continue
+
+              text = path.read_text(encoding="utf-8")
+              if "_string.h" in text:
+                  path.write_text(
+                      text.replace(
+                          "_string.h",
+                          "peercast_string.h"
+                      ),
+                      encoding="utf-8"
+                  )
+
+          print("Header conflict fix applied")
+          PY
+
       - name: Show environment
         run: |
           uname -a
