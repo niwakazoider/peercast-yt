@@ -79,6 +79,32 @@ jobs:
           print("OpenSSL dependency fixed")
           PY
 
+      - name: Fix Cookie comparison for macOS
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          header = Path("core/common/cookie.h")
+          source = Path("core/common/cookie.cpp")
+
+          old_header = "operator ==(const Cookie &c);"
+          new_header = "operator ==(const Cookie &c) const;"
+
+          old_source = "Cookie::operator ==(const Cookie &c)"
+          new_source = "Cookie::operator ==(const Cookie &c) const"
+
+          h = header.read_text()
+          s = source.read_text()
+
+          if old_header not in h or old_source not in s:
+              raise SystemExit("Cookie comparison definition not found")
+
+          header.write_text(h.replace(old_header, new_header))
+          source.write_text(s.replace(old_source, new_source))
+
+          print("Cookie comparison fixed")
+          PY
+
       - name: Configure CMake
         run: |
           cmake -S . -B build \
